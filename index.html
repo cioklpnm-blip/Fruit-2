@@ -1,0 +1,623 @@
+
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fruit AI - ตรวจจับชนิดผลไม้</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+<style>
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: linear-gradient(135deg, #fff1d6, #d8f9e5, #ffe4eb);
+    min-height: 100vh;
+    padding: 25px 15px;
+    color: #333;
+}
+
+.container {
+    max-width: 650px;
+    margin: 20px auto;
+    background: white;
+    padding: 30px;
+    border-radius: 25px;
+    box-shadow: 0 10px 35px rgba(0,0,0,0.1);
+}
+
+header {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+header .icon {
+    font-size: 55px;
+}
+
+h1 {
+    color: #25965c;
+    font-size: 32px;
+    margin: 10px 0;
+}
+
+header p {
+    color: #888;
+    font-size: 14px;
+}
+
+.fruit-list {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.fruit-card {
+    border-radius: 15px;
+    padding: 14px 5px;
+    text-align: center;
+    background: #f6fbf7;
+}
+
+.fruit-card span {
+    font-size: 30px;
+}
+
+.fruit-card p {
+    font-size: 12px;
+    font-weight: bold;
+    margin-top: 7px;
+}
+
+.upload-box {
+    border: 2px dashed #5ac58b;
+    background: #f4fff7;
+    border-radius: 18px;
+    padding: 30px 15px;
+    text-align: center;
+    cursor: pointer;
+    transition: .3s;
+}
+
+.upload-box:hover,
+.upload-box.drag {
+    background: #e4f9eb;
+    border-color: #188b50;
+}
+
+.upload-icon {
+    font-size: 45px;
+    margin-bottom: 10px;
+}
+
+.upload-box h3 {
+    color: #26945b;
+    margin-bottom: 8px;
+}
+
+.upload-box p {
+    color: #888;
+    font-size: 13px;
+}
+
+#fileInput {
+    display: none;
+}
+
+.preview-box {
+    display: none;
+    margin-top: 20px;
+    text-align: center;
+}
+
+#preview {
+    max-width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,.1);
+}
+
+.button-group {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+button {
+    border: none;
+    padding: 14px;
+    border-radius: 30px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: bold;
+    transition: .2s;
+}
+
+#predictBtn {
+    flex: 1;
+    color: white;
+    background: linear-gradient(135deg,#24ae6b,#48cf8a);
+}
+
+#predictBtn:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+
+#resetBtn {
+    background: #ffe8e8;
+    color: #d65b5b;
+    padding-left: 20px;
+    padding-right: 20px;
+}
+
+button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+#status {
+    text-align: center;
+    margin-top: 18px;
+    color: #25965c;
+    font-size: 14px;
+}
+
+#result {
+    display: none;
+    margin-top: 25px;
+    background: #f5fff7;
+    border: 1px solid #d9f0df;
+    border-radius: 18px;
+    padding: 22px;
+}
+
+#result h2 {
+    color: #258c54;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.main-result {
+    text-align: center;
+    padding: 15px;
+    background: white;
+    border-radius: 15px;
+}
+
+#resultEmoji {
+    font-size: 55px;
+}
+
+#resultName {
+    font-size: 25px;
+    color: #26965b;
+    margin: 10px 0;
+}
+
+#confidence {
+    font-size: 30px;
+    font-weight: bold;
+    color: #f0a62b;
+}
+
+.prediction {
+    margin-top: 17px;
+}
+
+.prediction-title {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    margin-bottom: 7px;
+}
+
+.bar {
+    background: #e5eee7;
+    height: 12px;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.progress {
+    background: linear-gradient(90deg,#32b873,#80dda3);
+    height: 100%;
+    width: 0%;
+    transition: width .5s;
+    border-radius: 20px;
+}
+
+footer {
+    text-align: center;
+    margin-top: 25px;
+    font-size: 12px;
+    color: #aaa;
+}
+
+@media(max-width:480px) {
+    .container {
+        padding: 20px 15px;
+    }
+
+    h1 {
+        font-size: 27px;
+    }
+
+    .fruit-list {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<header>
+    <div class="icon">🍎🍌🍊</div>
+    <h1>Fruit AI</h1>
+    <p>ระบบตรวจจับและจำแนกชนิดผลไม้ด้วยปัญญาประดิษฐ์</p>
+</header>
+
+<div class="fruit-list">
+    <div class="fruit-card">
+        <span>🍎</span>
+        <p>แอปเปิ้ล</p>
+    </div>
+
+    <div class="fruit-card">
+        <span>🍌</span>
+        <p>กล้วย</p>
+    </div>
+
+    <div class="fruit-card">
+        <span>🍊</span>
+        <p>ส้ม</p>
+    </div>
+
+    <div class="fruit-card">
+        <span>🍇</span>
+        <p>ผลไม้รวม</p>
+    </div>
+</div>
+
+<label class="upload-box" id="dropArea" for="fileInput">
+    <div class="upload-icon">📸</div>
+    <h3>อัปโหลดรูปภาพผลไม้</h3>
+    <p>คลิกเพื่อเลือกรูปภาพ หรือ ลากรูปภาพมาวางที่นี่</p>
+    <p>รองรับ JPG, PNG และ WEBP</p>
+</label>
+
+<input type="file" id="fileInput"
+       accept="image/jpeg,image/png,image/webp">
+
+<div class="preview-box" id="previewBox">
+    <h3 style="margin-bottom:12px;color:#26965b;">
+        🖼️ รูปภาพของคุณ
+    </h3>
+    <img id="preview" alt="ภาพผลไม้ที่อัปโหลด">
+</div>
+
+<div class="button-group">
+    <button id="predictBtn" disabled>
+        🔍 ตรวจสอบผลไม้
+    </button>
+
+    <button id="resetBtn">
+        🔄 ล้าง
+    </button>
+</div>
+
+<div id="status" role="status" aria-live="polite">
+    กำลังโหลดระบบ AI...
+</div>
+
+<div id="result">
+    <h2>🎉 ผลการวิเคราะห์</h2>
+
+    <div class="main-result">
+        <div id="resultEmoji">🍎</div>
+        <div id="resultName">แอปเปิ้ล</div>
+        <div id="confidence">95%</div>
+        <p>เปอร์เซ็นต์ความมั่นใจ</p>
+    </div>
+
+    <h3 style="margin-top:20px;">รายละเอียดผลการตรวจสอบ</h3>
+
+    <div id="label-container"></div>
+</div>
+
+<footer>
+    Fruit AI Recognition System<br>
+    Powered by Teachable Machine & TensorFlow.js
+</footer>
+
+</div>
+
+<script>
+"use strict";
+
+// URL ของโมเดล Teachable Machine
+const URL = "https://teachablemachine.withgoogle.com/models/t2QTbHQTG/";
+const MAX_SIZE = 10 * 1024 * 1024;
+
+let model = null;
+let imageElement = null;
+let imageURL = null;
+let isPredicting = false;
+
+const $ = id => document.getElementById(id);
+
+const fileInput = $("fileInput");
+const predictBtn = $("predictBtn");
+const dropArea = $("dropArea");
+
+// ข้อมูลชนิดผลไม้
+const fruitData = [
+    {
+        keywords: ["apple"],
+        name: "แอปเปิ้ล (Apple)",
+        emoji: "🍎"
+    },
+    {
+        keywords: ["banana"],
+        name: "กล้วย (Banana)",
+        emoji: "🍌"
+    },
+    {
+        keywords: ["orange"],
+        name: "ส้ม (Orange)",
+        emoji: "🍊"
+    },
+    {
+        keywords: ["mixed fruit", "mixed fruits", "mix fruit", "mix fruits"],
+        name: "ผลไม้รวม (Mixed Fruits)",
+        emoji: "🍇"
+    }
+];
+
+// แปลงชื่อคลาสเป็นภาษาไทย
+function getFruit(name) {
+    const normalized = name.trim().toLowerCase();
+
+    return fruitData.find(fruit =>
+        fruit.keywords.includes(normalized)
+    ) || {
+        name: name,
+        emoji: "🍃"
+    };
+}
+
+// โหลดโมเดล AI
+async function loadModel() {
+    try {
+        $("status").textContent = "⏳ กำลังโหลดโมเดล AI...";
+
+        model = await tmImage.load(
+            URL + "model.json",
+            URL + "metadata.json"
+        );
+
+        $("status").textContent = "✅ ระบบ AI พร้อมใช้งาน";
+        updateButton();
+
+    } catch (error) {
+        console.error(error);
+        model = null;
+        $("status").textContent =
+            "❌ โหลดโมเดลไม่สำเร็จ กรุณาตรวจสอบ URL";
+        updateButton();
+    }
+}
+
+// ควบคุมปุ่ม
+function updateButton() {
+    predictBtn.disabled =
+        !model || !imageElement || isPredicting;
+}
+
+// ตรวจสอบไฟล์
+function handleFile(file) {
+    if (isPredicting || !file) return;
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        $("status").textContent =
+            "❌ กรุณาเลือกไฟล์ JPG, PNG หรือ WEBP";
+        return;
+    }
+
+    if (file.size > MAX_SIZE) {
+        $("status").textContent =
+            "❌ ไฟล์ต้องมีขนาดไม่เกิน 10 MB";
+        return;
+    }
+
+    if (file.size === 0) {
+        $("status").textContent = "❌ ไฟล์รูปภาพว่างเปล่า";
+        return;
+    }
+
+    const newURL = URL_API(file);
+    const image = new Image();
+
+    image.onload = function() {
+        if (imageURL) URL.revokeObjectURL(imageURL);
+
+        imageURL = newURL;
+        imageElement = image;
+
+        $("preview").src = imageURL;
+        $("previewBox").style.display = "block";
+        $("result").style.display = "none";
+        $("status").textContent = "✅ อัปโหลดรูปภาพสำเร็จ";
+
+        updateButton();
+    };
+
+    image.onerror = function() {
+        URL.revokeObjectURL(newURL);
+        $("status").textContent = "❌ ไม่สามารถอ่านรูปภาพได้";
+    };
+
+    image.src = newURL;
+}
+
+// สร้าง URL สำหรับรูปภาพ
+function URL_API(file) {
+    return URL.createObjectURL(file);
+}
+
+// รับไฟล์จากอุปกรณ์
+fileInput.addEventListener("change", event => {
+    handleFile(event.target.files[0]);
+});
+
+// Drag and Drop
+["dragenter", "dragover"].forEach(event => {
+    dropArea.addEventListener(event, e => {
+        e.preventDefault();
+        dropArea.classList.add("drag");
+    });
+});
+
+["dragleave", "drop"].forEach(event => {
+    dropArea.addEventListener(event, e => {
+        e.preventDefault();
+        dropArea.classList.remove("drag");
+    });
+});
+
+dropArea.addEventListener("drop", e => {
+    handleFile(e.dataTransfer.files[0]);
+});
+
+// วิเคราะห์รูปภาพ
+async function predict() {
+    if (!model || !imageElement || isPredicting) return;
+
+    isPredicting = true;
+    updateButton();
+
+    $("status").textContent = "🔍 AI กำลังวิเคราะห์...";
+    $("result").style.display = "none";
+
+    try {
+        const predictions = await model.predict(imageElement);
+
+        if (!Array.isArray(predictions) || predictions.length === 0) {
+            throw new Error("ไม่มีข้อมูลผลการทำนาย");
+        }
+
+        predictions.sort((a, b) =>
+            b.probability - a.probability
+        );
+
+        showResults(predictions);
+
+        $("result").style.display = "block";
+        $("status").textContent = "✅ วิเคราะห์เสร็จเรียบร้อย";
+
+    } catch (error) {
+        console.error(error);
+        $("status").textContent =
+            "❌ เกิดข้อผิดพลาด กรุณาลองอีกครั้ง";
+    } finally {
+        isPredicting = false;
+        updateButton();
+    }
+}
+
+predictBtn.addEventListener("click", predict);
+
+// แสดงผลการทำนาย
+function showResults(predictions) {
+    const best = predictions[0];
+    const fruit = getFruit(best.className);
+
+    $("resultEmoji").textContent = fruit.emoji;
+    $("resultName").textContent = fruit.name;
+
+    $("confidence").textContent =
+        (best.probability * 100).toFixed(2) + "%";
+
+    const container = $("label-container");
+    container.replaceChildren();
+
+    predictions.forEach(item => {
+        const fruit = getFruit(item.className);
+        const percent = Math.max(
+            0,
+            Math.min(100, item.probability * 100)
+        );
+
+        const row = document.createElement("div");
+        row.className = "prediction";
+
+        const title = document.createElement("div");
+        title.className = "prediction-title";
+
+        const name = document.createElement("strong");
+        name.textContent = fruit.emoji + " " + fruit.name;
+
+        const value = document.createElement("span");
+        value.textContent = percent.toFixed(2) + "%";
+
+        title.append(name, value);
+
+        const bar = document.createElement("div");
+        bar.className = "bar";
+
+        const progress = document.createElement("div");
+        progress.className = "progress";
+        progress.style.width = percent + "%";
+
+        bar.appendChild(progress);
+        row.append(title, bar);
+        container.appendChild(row);
+    });
+
+    if (best.probability < 0.60) {
+        $("status").textContent =
+            "⚠️ ความมั่นใจต่ำ ควรลองใช้ภาพที่ชัดเจนขึ้น";
+    }
+}
+
+// ล้างข้อมูล
+$("resetBtn").addEventListener("click", () => {
+    if (isPredicting) return;
+
+    imageElement = null;
+
+    if (imageURL) {
+        URL.revokeObjectURL(imageURL);
+        imageURL = null;
+    }
+
+    fileInput.value = "";
+    $("preview").removeAttribute("src");
+    $("previewBox").style.display = "none";
+    $("result").style.display = "none";
+
+    $("status").textContent = model
+        ? "พร้อมอัปโหลดรูปภาพ"
+        : "กำลังรอโหลดโมเดล AI";
+
+    updateButton();
+});
+
+// เริ่มต้นเว็บไซต์
+loadModel();
+
+</script>
+
+</body>
+</html>
